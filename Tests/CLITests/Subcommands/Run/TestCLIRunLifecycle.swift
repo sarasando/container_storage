@@ -83,4 +83,35 @@ class TestCLIRunLifecycle: CLITest {
             try self.doStop(name: name)
         }
     }
+
+    @Test func testRunWithStorageShowsCorrectDiskSize() throws {
+        let name = getTestName()
+
+        #expect(throws: Never.self, "expected container run with storage to succeed") {
+            try self.doLongRun(
+                name: name,
+                args: [
+                    "--rm",
+                    "--storage", "100MB"
+                ]
+            )
+            defer {
+                try? self.doStop(name: name)
+            }
+
+            try self.waitForContainerRunning(name)
+
+            let output = try self.doExec(
+                name: name,
+                cmd: ["sh", "-c", "df -m / | tail -1 | awk '{print $2}'"]
+            )
+
+            let reportedMB = Int(
+                output.trimmingCharacters(in: .whitespacesAndNewlines)
+            )!
+
+            #expect(reportedMB >= 90, "expected root filesystem to be ~100MB")
+        }
+    }
+
 }

@@ -84,16 +84,38 @@ public struct Parser {
         try .init(from: platform)
     }
 
-    public static func resources(cpus: Int64?, memory: String?) throws -> ContainerConfiguration.Resources {
+    public static func resources( cpus: Int64?, memory: String?, storage: String?) throws -> ContainerConfiguration.Resources {
         var resource = ContainerConfiguration.Resources()
+
         if let cpus {
             resource.cpus = Int(cpus)
         }
+
         if let memory {
             resource.memoryInBytes = try Parser.memoryString(memory).mib()
         }
+
+        if let storage {
+            let size = try Measurement.parse(parsing: storage)
+            let bytes = size.converted(to: .bytes)
+
+            guard bytes.value > 0 else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "storage size must be greater than zero"
+                )
+            }
+
+            let storageBytes = UInt64(bytes.value)
+
+            try Utility.validateStorageFitsOnHost(storageBytes)
+
+            resource.storage = storageBytes
+        }
+
         return resource
     }
+
 
     public static func allEnv(imageEnvs: [String], envFiles: [String], envs: [String]) throws -> [String] {
         var output: [String] = []

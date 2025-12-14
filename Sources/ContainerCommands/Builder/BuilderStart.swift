@@ -105,17 +105,30 @@ extension Application {
                 }()
                 let memChanged = try {
                     if let memory {
-                        let memoryInBytes = try Parser.resources(cpus: nil, memory: memory).memoryInBytes
+                        let memoryInBytes = try Parser.resources(cpus: nil, memory: memory, storage: nil).memoryInBytes
                         if existingResources.memoryInBytes != memoryInBytes {
                             return true
                         }
                     }
                     return false
                 }()
+                /// sara
+                let requestedStorage: UInt64? = {
+                    guard let raw = DefaultsStore.getOptional(key: .defaultBuilderDiskSize) else {
+                        return nil
+                    }
+                    return try? Parser.resources(
+                        cpus: nil,
+                        memory: nil,
+                        storage: raw
+                    ).storage
+                }()
+
+                let storageChanged = requestedStorage != existingResources.storage
 
                 switch existingContainer.status {
                 case .running:
-                    guard imageChanged || cpuChanged || memChanged else {
+                    guard imageChanged || cpuChanged || memChanged || storageChanged else {
                         // If image, mem and cpu are the same, continue using the existing builder
                         return
                     }
@@ -125,7 +138,7 @@ extension Application {
                 case .stopped:
                     // If the builder is stopped and matches our requirements, start it
                     // Otherwise, delete it and create a new one
-                    guard imageChanged || cpuChanged || memChanged else {
+                    guard imageChanged || cpuChanged || memChanged || storageChanged else {
                         try await existingContainer.startBuildKit(progressUpdate, nil)
                         return
                     }
@@ -184,7 +197,9 @@ extension Application {
 
             let resources = try Parser.resources(
                 cpus: cpus,
-                memory: memory
+                memory: memory,
+                storage: DefaultsStore.getOptional(key: .defaultBuilderDiskSize)
+
             )
 
             var config = ContainerConfiguration(id: id, image: imageDesc, process: processConfig)

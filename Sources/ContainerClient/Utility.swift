@@ -170,7 +170,8 @@ public struct Utility {
 
         config.resources = try Parser.resources(
             cpus: resource.cpus,
-            memory: resource.memory
+            memory: resource.memory,
+            storage: resource.storage
         )
 
         let tmpfs = try Parser.tmpfsMounts(management.tmpFs)
@@ -252,6 +253,27 @@ public struct Utility {
         config.ssh = management.ssh
 
         return (config, kernel)
+    }
+
+    public static func validateStorageFitsOnHost(_ bytes: UInt64) throws {
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+        let values = try home.resourceValues(
+            forKeys: [.volumeAvailableCapacityForImportantUsageKey]
+        )
+
+        guard let available = values.volumeAvailableCapacityForImportantUsage else {
+            throw ContainerizationError(
+                .internalError,
+                message: "unable to determine available host disk space"
+            )
+        }
+
+        if bytes > UInt64(available) {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "requested storage size exceeds available host disk space"
+            )
+        }
     }
 
     static func getAttachmentConfigurations(containerId: String, networks: [Parser.ParsedNetwork]) throws -> [AttachmentConfiguration] {
